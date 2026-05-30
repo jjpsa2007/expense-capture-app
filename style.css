@@ -847,7 +847,7 @@ header {
   gap: 0.75rem;
 }
 
-/* --- Responsive Adjustments --- */
+/* --- Responsive Adjustments & Mobile Optimization --- */
 @media (max-width: 992px) {
   .workspace-grid {
     grid-template-columns: 1fr;
@@ -869,6 +869,7 @@ header {
   .action-bar {
     width: 100%;
     justify-content: space-between;
+    gap: 0.75rem;
   }
   
   .action-bar .btn {
@@ -878,14 +879,125 @@ header {
   .utility-panel {
     flex-direction: column;
     align-items: stretch;
+    gap: 1.25rem;
   }
   
   .utility-buttons {
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    width: 100%;
   }
   
   .utility-buttons .btn {
+    width: 100%;
+    padding: 0.6rem 0.5rem;
+    font-size: 0.8rem;
+  }
+  
+  .sync-status-container {
+    justify-content: center;
+    width: 100%;
+    text-align: center;
+    order: 2; /* move status indicator below buttons for symmetry */
+  }
+}
+
+@media (max-width: 576px) {
+  /* Stacking form inputs in modals vertically for clean mobile typing */
+  .form-row {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+  
+  /* Shrinking modal margins and paddings */
+  .modal-content {
+    padding: 1.5rem 1.25rem;
+    width: 92%;
+    margin: 0 auto;
+  }
+  
+  .modal-actions {
+    margin-top: 1.5rem;
+    gap: 0.75rem;
+  }
+
+  /* Stacking the ledger header vertically so tabs have breathing room */
+  .ledger-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+  
+  .tabs {
+    width: 100%;
+  }
+  
+  .tab-btn {
     flex: 1;
+    text-align: center;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
+  }
+
+  /* Reports period switcher stacking */
+  .reports-selector {
+    width: 100%;
+  }
+  
+  .report-tab-btn {
+    padding: 0.5rem;
+    font-size: 0.75rem;
+  }
+
+  /* Refitting filter inputs on small screens */
+  .filter-strip {
+    gap: 0.5rem;
+  }
+  
+  .filter-input {
+    font-size: 0.8rem;
+    padding: 0.5rem;
+    min-width: calc(50% - 0.25rem); /* two columns grid for selector filters */
+  }
+  
+  #filter-search {
+    min-width: 100%; /* search input spans full-width */
+  }
+
+  /* Responsive Stacking for Ledger Items */
+  .ledger-item {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+    padding: 0.85rem 1rem;
+  }
+  
+  .ledger-item-right {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    padding-top: 0.6rem;
+    width: 100%;
+    text-align: left;
+  }
+  
+  .ledger-actions {
+    opacity: 1; /* always show action icons since touch screens lack hover */
+    gap: 0.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Stack primary action buttons vertically for narrow screens */
+  .action-bar {
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .action-bar .btn {
+    width: 100%;
   }
 }
 
