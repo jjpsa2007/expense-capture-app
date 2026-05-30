@@ -30,7 +30,7 @@ const seedData = {
       amount: 150000,
       transferMode: 'Bank',
       status: 'Received',
-      notes: 'Initial mobilization advance from Investor'
+      notes: 'Initial mobilization advance from Athan'
     },
     {
       id: 'f-2',
@@ -57,7 +57,7 @@ const seedData = {
       recipientType: 'contractor',
       recipientName: 'Vikas Earthmovers',
       paymentMode: 'Bank',
-      paidFrom: 'Investor Advance',
+      paidFrom: 'Athan Advance',
       notes: 'Excavation & site leveling contractor'
     },
     {
@@ -67,7 +67,7 @@ const seedData = {
       recipientType: 'vendor',
       recipientName: 'UltraTech Cement Dealer',
       paymentMode: 'Bank',
-      paidFrom: 'Investor Advance',
+      paidFrom: 'Athan Advance',
       notes: 'Purchased 100 bags of Grade 53 cement'
     },
     {
@@ -77,7 +77,7 @@ const seedData = {
       recipientType: 'contractor',
       recipientName: 'Karan Brickworks',
       paymentMode: 'Cash',
-      paidFrom: 'Investor Advance',
+      paidFrom: 'Athan Advance',
       notes: 'Plinth level bricklaying labor charges'
     },
     {
@@ -88,7 +88,7 @@ const seedData = {
       recipientName: 'Apex Steel Traders',
       paymentMode: 'GPay',
       paidFrom: 'My Hand',
-      notes: 'Urgent reinforcement steel purchase (Investor fund delayed)'
+      notes: 'Urgent reinforcement steel purchase (Athan fund delayed)'
     },
     {
       id: 'e-5',
@@ -106,12 +106,12 @@ const seedData = {
 // --- Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
   initApp();
-  
+
   // Set default dates in form inputs
   const todayStr = new Date().toISOString().split('T')[0];
   document.getElementById('expense-date').value = todayStr;
   document.getElementById('funding-date').value = todayStr;
-  
+
   // Close modals on clicking overlay background
   document.querySelectorAll('.modal-overlay').forEach(overlay => {
     overlay.addEventListener('click', (e) => {
@@ -136,7 +136,7 @@ function updateSyncStatus(status, customMsg = '') {
 
   // Reset indicator styles
   dot.className = 'sync-dot';
-  
+
   if (status === 'syncing') {
     dot.classList.add('status-syncing');
     text.innerText = customMsg || 'Syncing ledger data...';
@@ -175,7 +175,7 @@ function showAppLoader(show) {
  */
 async function initApp() {
   updateSyncStatus('syncing', 'Connecting to Vercel KV...');
-  
+
   // Set up local storage backup loader
   const loadLocalFallback = () => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -220,7 +220,7 @@ async function initApp() {
 
     // Check if the database has records
     const isCloudEmpty = (!cloudData.expenses || cloudData.expenses.length === 0) &&
-                        (!cloudData.fundings || cloudData.fundings.length === 0);
+      (!cloudData.fundings || cloudData.fundings.length === 0);
 
     if (isCloudEmpty) {
       console.log('Database is completely empty. Seeding defaults to cloud...');
@@ -375,39 +375,39 @@ function recalculateMetrics() {
     }
   });
 
-  // Net investor cash balance remaining in Middle Man's custody
-  const investorBalance = totals.totalReceived - totals.spentFromAdvance;
-  
-  // Reimbursement outstanding: what I spent from hand + what investor delayed/promised
+  // Net Athan cash balance remaining in Middle Man's custody
+  const AthanBalance = totals.totalReceived - totals.spentFromAdvance;
+
+  // Reimbursement outstanding: what I spent from hand + what Athan delayed/promised
   const outstandingDue = totals.spentFromHand + totals.totalDelayed;
 
   // Update DOM KPI elements
   document.getElementById('kpi-total-spent').innerText = formatCurrency(totals.totalSpent);
   document.getElementById('kpi-spent-hand').innerText = formatCurrency(totals.spentFromHand);
-  document.getElementById('kpi-received-investor').innerText = formatCurrency(totals.totalReceived);
+  document.getElementById('kpi-received-Athan').innerText = formatCurrency(totals.totalReceived);
   document.getElementById('kpi-outstanding-due').innerText = formatCurrency(outstandingDue);
 
   // Update Dynamic Balance Progress Bar
-  const barInvestor = document.getElementById('bar-investor');
+  const barAthan = document.getElementById('bar-Athan');
   const barHand = document.getElementById('bar-hand');
   const ratioText = document.getElementById('balance-ratio-value');
-  const lblInvestorRatio = document.getElementById('lbl-investor-ratio');
+  const lblAthanRatio = document.getElementById('lbl-Athan-ratio');
   const lblHandRatio = document.getElementById('lbl-hand-ratio');
 
-  lblInvestorRatio.innerText = formatCurrency(totals.spentFromAdvance);
+  lblAthanRatio.innerText = formatCurrency(totals.spentFromAdvance);
   lblHandRatio.innerText = formatCurrency(totals.spentFromHand);
 
   if (totals.totalSpent === 0) {
-    barInvestor.style.width = '0%';
+    barAthan.style.width = '0%';
     barHand.style.width = '0%';
-    ratioText.innerText = '0% Investor / 0% My Hand';
+    ratioText.innerText = '0% Athan / 0% My Hand';
   } else {
     const invPct = (totals.spentFromAdvance / totals.totalSpent) * 100;
     const handPct = (totals.spentFromHand / totals.totalSpent) * 100;
-    
-    barInvestor.style.width = `${invPct}%`;
+
+    barAthan.style.width = `${invPct}%`;
     barHand.style.width = `${handPct}%`;
-    ratioText.innerText = `${Math.round(invPct)}% Investor / ${Math.round(handPct)}% My Hand`;
+    ratioText.innerText = `${Math.round(invPct)}% Athan / ${Math.round(handPct)}% My Hand`;
   }
 }
 
@@ -417,7 +417,7 @@ function renderLedger() {
   container.innerHTML = '';
 
   const searchLower = state.filters.search.toLowerCase();
-  
+
   if (state.activeLedgerTab === 'expenses') {
     // Show filter elements related to expenses
     document.getElementById('filter-recipient-type').style.display = 'block';
@@ -442,9 +442,9 @@ function renderLedger() {
     filteredExpenses.forEach(e => {
       const el = document.createElement('div');
       el.className = 'ledger-item';
-      
+
       const isHand = e.paidFrom === 'My Hand';
-      const badgeSourceClass = isHand ? 'badge-my-hand' : 'badge-investor-advance';
+      const badgeSourceClass = isHand ? 'badge-my-hand' : 'badge-Athan-advance';
       const badgeModeClass = e.paymentMode === 'GPay' ? 'badge-gpay' : (e.paymentMode === 'Cash' ? 'badge-cash' : 'badge-other');
 
       el.innerHTML = `
@@ -511,7 +511,7 @@ function renderLedger() {
             <svg width="20" height="20" fill="none" stroke="var(--accent-primary)" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
           </div>
           <div>
-            <div class="ledger-item-title">${escapeHTML(f.notes || 'Investor Deposit')}</div>
+            <div class="ledger-item-title">${escapeHTML(f.notes || 'Athan Deposit')}</div>
             <div class="ledger-item-meta">
               <span class="ledger-item-meta-item">
                 <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
@@ -561,7 +561,7 @@ function applyFilters() {
   state.filters.recipientType = document.getElementById('filter-recipient-type').value;
   state.filters.mode = document.getElementById('filter-mode').value;
   state.filters.funding = document.getElementById('filter-funding').value;
-  
+
   recalculateMetrics();
   renderLedger();
   renderReports();
@@ -579,7 +579,7 @@ function switchReportPeriod(period) {
 function renderReports() {
   const period = state.activeReportPeriod;
   const today = new Date();
-  
+
   let startDate, endDate;
   let labelText = '';
 
@@ -593,12 +593,12 @@ function renderReports() {
     const distanceToMonday = currentDay === 0 ? -6 : 1 - currentDay; // Adjust Sunday = 0
     startDate = new Date(today.setDate(today.getDate() + distanceToMonday));
     startDate.setHours(0, 0, 0, 0);
-    
+
     // Get Sunday
     endDate = new Date(startDate);
     endDate.setDate(endDate.getDate() + 6);
     endDate.setHours(23, 59, 59, 999);
-    
+
     labelText = `${formatLabelDate(startDate)} to ${formatLabelDate(endDate)}`;
   } else if (period === 'month') {
     startDate = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -668,7 +668,7 @@ function renderBreakdownChart(elementId, groups, totalSum) {
       </div>
     `;
     container.appendChild(row);
-    
+
     // Smooth width fill transition trigger
     setTimeout(() => {
       row.querySelector('.mini-bar-fill').style.width = `${pct}%`;
@@ -703,7 +703,7 @@ function closeExpenseModal() {
   document.getElementById('form-expense').reset();
   document.getElementById('expense-id').value = '';
   document.getElementById('expense-submit-btn').innerText = 'Record Expense';
-  
+
   // Restore default date
   const todayStr = new Date().toISOString().split('T')[0];
   document.getElementById('expense-date').value = todayStr;
@@ -719,7 +719,7 @@ function closeFundingModal() {
   document.getElementById('form-funding').reset();
   document.getElementById('funding-id').value = '';
   document.getElementById('funding-submit-btn').innerText = 'Record Funding';
-  
+
   // Restore default date
   const todayStr = new Date().toISOString().split('T')[0];
   document.getElementById('funding-date').value = todayStr;
@@ -852,7 +852,7 @@ function editFunding(id) {
 }
 
 function deleteFunding(id) {
-  if (confirm('Are you sure you want to delete this investor funding tranche?')) {
+  if (confirm('Are you sure you want to delete this Athan funding tranche?')) {
     state.fundings = state.fundings.filter(f => f.id !== id);
     saveToStorage();
     applyFilters();
@@ -870,7 +870,7 @@ function exportDataJSON() {
 
 function exportDataCSV() {
   let csvContent = "data:text/csv;charset=utf-8,";
-  
+
   // Section 1: Expenses Header & Data
   csvContent += "=== EXPENSES ===\r\n";
   csvContent += "Date,Amount,Recipient Type,Recipient Name,Payment Mode,Paid From,Notes\r\n";
@@ -886,11 +886,11 @@ function exportDataCSV() {
     ].join(",");
     csvContent += row + "\r\n";
   });
-  
+
   csvContent += "\r\n";
-  
+
   // Section 2: Inflows Header & Data
-  csvContent += "=== INVESTOR FUNDINGS ===\r\n";
+  csvContent += "=== Athan FUNDINGS ===\r\n";
   csvContent += "Date,Amount,Transfer Mode,Status,Notes\r\n";
   state.fundings.forEach(f => {
     const row = [
@@ -919,13 +919,13 @@ function importDataJSON(event) {
   if (!file) return;
 
   const reader = new FileReader();
-  reader.onload = function(e) {
+  reader.onload = function (e) {
     try {
       const imported = JSON.parse(e.target.result);
       if (Array.isArray(imported.expenses) && Array.isArray(imported.fundings)) {
         state.expenses = imported.expenses;
         state.fundings = imported.fundings;
-        
+
         saveToStorage();
         applyFilters();
         alert('Data successfully imported and active!');
@@ -948,62 +948,62 @@ function importDataCSV(event) {
   if (!file) return;
 
   const reader = new FileReader();
-  reader.onload = function(e) {
+  reader.onload = function (e) {
     const text = e.target.result;
     const lines = text.split(/\r?\n/);
-    
+
     let parsedExpenses = [];
     let parsedFundings = [];
-    
+
     let currentMode = 'auto'; // 'auto', 'expenses', 'fundings'
     let expenseHeaderIndices = null;
     let fundingHeaderIndices = null;
-    
+
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
       if (!line) continue;
-      
+
       // Check section headers
       if (line.includes('=== EXPENSES ===')) {
         currentMode = 'expenses';
         expenseHeaderIndices = null;
         continue;
       }
-      if (line.includes('=== INVESTOR FUNDINGS ===')) {
+      if (line.includes('=== Athan FUNDINGS ===')) {
         currentMode = 'fundings';
         fundingHeaderIndices = null;
         continue;
       }
-      
+
       const columns = parseCSVLine(line);
       if (columns.length === 0 || (columns.length === 1 && columns[0] === '')) continue;
-      
+
       // Auto-detect mode or inspect headers
       if (currentMode === 'auto' || currentMode === 'expenses') {
         const isHeader = columns.some(col => {
           const l = col.toLowerCase().trim();
           return l === 'date' || l === 'amount' || l === 'recipient name' || l === 'recipient' || l === 'paid to';
         });
-        
+
         if (isHeader && !expenseHeaderIndices) {
           expenseHeaderIndices = mapHeaders(columns, 'expenses');
           if (currentMode === 'auto') currentMode = 'expenses';
           continue;
         }
       }
-      
+
       if (currentMode === 'fundings') {
         const isHeader = columns.some(col => {
           const l = col.toLowerCase().trim();
           return l === 'date' || l === 'amount' || l === 'transfer mode' || l === 'status';
         });
-        
+
         if (isHeader && !fundingHeaderIndices) {
           fundingHeaderIndices = mapHeaders(columns, 'fundings');
           continue;
         }
       }
-      
+
       // Parse data rows
       if (currentMode === 'expenses') {
         const item = parseExpenseRow(columns, expenseHeaderIndices || { date: 0, amount: 1, recipientType: 2, recipientName: 3, paymentMode: 4, paidFrom: 5, notes: 6 }, i);
@@ -1013,7 +1013,7 @@ function importDataCSV(event) {
         if (item) parsedFundings.push(item);
       }
     }
-    
+
     if (parsedExpenses.length > 0 || parsedFundings.length > 0) {
       if (confirm(`Successfully parsed ${parsedExpenses.length} expenses and ${parsedFundings.length} fundings. Overwrite current ledger?\n\n(Click 'OK' to overwrite current state. Click 'Cancel' to append these records to your existing list)`)) {
         state.expenses = parsedExpenses;
@@ -1022,7 +1022,7 @@ function importDataCSV(event) {
         state.expenses = [...state.expenses, ...parsedExpenses];
         state.fundings = [...state.fundings, ...parsedFundings];
       }
-      
+
       saveToStorage();
       applyFilters();
       alert('CSV Data successfully loaded and calculated!');
@@ -1040,7 +1040,7 @@ function parseCSVLine(line) {
   for (let i = 0; i < line.length; i++) {
     const char = line[i];
     if (char === '"') {
-      if (inQuotes && line[i+1] === '"') {
+      if (inQuotes && line[i + 1] === '"') {
         current += '"';
         i++; // skip escaped quote
       } else {
@@ -1080,24 +1080,24 @@ function parseExpenseRow(columns, mapping, index) {
   const dateCol = columns[mapping.date !== undefined ? mapping.date : 0] || '';
   const amountCol = columns[mapping.amount !== undefined ? mapping.amount : 1] || '';
   const nameCol = columns[mapping.recipientName !== undefined ? mapping.recipientName : 3] || 'Unknown';
-  
+
   const amt = parseFloat(amountCol.replace(/[^0-9.-]/g, ''));
   if (!dateCol || isNaN(amt) || amt <= 0) return null;
-  
+
   let recType = columns[mapping.recipientType !== undefined ? mapping.recipientType : 2] || 'contractor';
   recType = recType.toLowerCase().includes('vendor') ? 'vendor' : 'contractor';
-  
+
   let payMode = columns[mapping.paymentMode !== undefined ? mapping.paymentMode : 4] || 'GPay';
   if (!['GPay', 'Cash', 'Bank', 'Other'].some(m => m.toLowerCase() === payMode.toLowerCase())) {
     payMode = payMode.toLowerCase().includes('bank') ? 'Bank' : (payMode.toLowerCase().includes('cash') ? 'Cash' : 'Other');
   }
-  
-  let paidFrom = columns[mapping.paidFrom !== undefined ? mapping.paidFrom : 5] || 'Investor Advance';
-  paidFrom = paidFrom.toLowerCase().includes('hand') || paidFrom.toLowerCase().includes('pocket') ? 'My Hand' : 'Investor Advance';
-  
+
+  let paidFrom = columns[mapping.paidFrom !== undefined ? mapping.paidFrom : 5] || 'Athan Advance';
+  paidFrom = paidFrom.toLowerCase().includes('hand') || paidFrom.toLowerCase().includes('pocket') ? 'My Hand' : 'Athan Advance';
+
   const notes = columns[mapping.notes !== undefined ? mapping.notes : 6] || '';
   const cleanDate = normalizeCSVDate(dateCol);
-  
+
   return {
     id: 'e-csv-' + index + '-' + Date.now(),
     date: cleanDate,
@@ -1113,21 +1113,21 @@ function parseExpenseRow(columns, mapping, index) {
 function parseFundingRow(columns, mapping, index) {
   const dateCol = columns[mapping.date !== undefined ? mapping.date : 0] || '';
   const amountCol = columns[mapping.amount !== undefined ? mapping.amount : 1] || '';
-  
+
   const amt = parseFloat(amountCol.replace(/[^0-9.-]/g, ''));
   if (!dateCol || isNaN(amt) || amt <= 0) return null;
-  
+
   let mode = columns[mapping.transferMode !== undefined ? mapping.transferMode : 2] || 'Bank';
   if (!['Bank', 'GPay', 'Cash', 'Other'].some(m => m.toLowerCase() === mode.toLowerCase())) {
     mode = mode.toLowerCase().includes('gpay') ? 'GPay' : (mode.toLowerCase().includes('cash') ? 'Cash' : 'Bank');
   }
-  
+
   let status = columns[mapping.status !== undefined ? mapping.status : 3] || 'Received';
   status = status.toLowerCase().includes('delay') || status.toLowerCase().includes('promise') || status.toLowerCase().includes('pending') ? 'Delayed' : 'Received';
-  
+
   const notes = columns[mapping.notes !== undefined ? mapping.notes : 4] || `Funding via ${mode}`;
   const cleanDate = normalizeCSVDate(dateCol);
-  
+
   return {
     id: 'f-csv-' + index + '-' + Date.now(),
     date: cleanDate,
@@ -1141,7 +1141,7 @@ function parseFundingRow(columns, mapping, index) {
 function normalizeCSVDate(dateStr) {
   const clean = dateStr.trim().replace(/\//g, '-');
   const parts = clean.split('-');
-  
+
   if (parts.length === 3) {
     if (parts[0].length === 4) {
       // YYYY-MM-DD
