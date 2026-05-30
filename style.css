@@ -888,3 +888,104 @@ header {
     flex: 1;
   }
 }
+
+/* --- Live Cloud Sync Indicator --- */
+.sync-status-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sync-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  display: inline-block;
+  position: relative;
+  transition: var(--transition-smooth);
+}
+
+.sync-dot.status-syncing {
+  background: var(--accent-info);
+  box-shadow: 0 0 8px rgba(var(--accent-info-rgb), 0.6);
+  animation: pulse-sync 1.5s infinite ease-in-out;
+}
+
+.sync-dot.status-synced {
+  background: var(--accent-primary);
+  box-shadow: 0 0 8px rgba(var(--accent-primary-rgb), 0.6);
+}
+
+.sync-dot.status-offline {
+  background: var(--accent-warning);
+  box-shadow: 0 0 8px rgba(var(--accent-warning-rgb), 0.6);
+}
+
+.sync-dot.status-error {
+  background: var(--accent-danger);
+  box-shadow: 0 0 8px rgba(var(--accent-danger-rgb), 0.6);
+}
+
+@keyframes pulse-sync {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 0.6;
+  }
+}
+
+/* --- Initial Full-Screen Loader --- */
+.app-loader-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: var(--bg-base);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  transition: opacity 0.5s ease;
+}
+
+.app-loader-overlay.fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.app-spinner {
+  width: 48px;
+  height: 48px;
+  border: 3px solid rgba(255, 255, 255, 0.05);
+  border-top-color: var(--accent-primary);
+  border-radius: var(--radius-full);
+  animation: spin 1s linear infinite;
+  margin-bottom: 1.5rem;
+}
+
+.app-loader-text {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.05em;
+  animation: pulse-text 1.5s infinite ease-in-out;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse-text {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+

@@ -14,6 +14,12 @@
 </head>
 <body>
 
+  <!-- Initial Cloud Fetch Loading Screen -->
+  <div id="app-loader" class="app-loader-overlay">
+    <div class="app-spinner"></div>
+    <div class="app-loader-text">Loading Co-Ledger Database...</div>
+  </div>
+
   <main class="container">
     
     <!-- HEADER ACTION BAR -->
@@ -191,8 +197,9 @@
 
     <!-- BOTTOM PORTABILITY DRAWER -->
     <footer class="card utility-panel" aria-label="Data Portability Utility Panel">
-      <div class="color-secondary" style="font-size: 0.85rem;">
-        Data is auto-saved locally. Keep backups to prevent browser cache loss.
+      <div class="sync-status-container color-secondary" style="font-size: 0.85rem;">
+        <span id="sync-dot" class="sync-dot status-syncing"></span>
+        <span id="sync-text">Connecting to Vercel KV...</span>
       </div>
       <div class="utility-buttons">
         <button class="btn btn-secondary" onclick="exportDataJSON()">

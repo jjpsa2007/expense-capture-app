@@ -123,39 +123,194 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
+// --- Sync State Visual Controllers ---
+
+/**
+ * Update the dynamic visual live cloud sync status indicator in the footer.
+ * Supports: 'syncing' | 'synced' | 'offline' | 'error'
+ */
+function updateSyncStatus(status, customMsg = '') {
+  const dot = document.getElementById('sync-dot');
+  const text = document.getElementById('sync-text');
+  if (!dot || !text) return;
+
+  // Reset indicator styles
+  dot.className = 'sync-dot';
+  
+  if (status === 'syncing') {
+    dot.classList.add('status-syncing');
+    text.innerText = customMsg || 'Syncing ledger data...';
+  } else if (status === 'synced') {
+    dot.classList.add('status-synced');
+    text.innerText = customMsg || 'Synced with Cloud (Vercel KV)';
+  } else if (status === 'offline') {
+    dot.classList.add('status-offline');
+    text.innerText = customMsg || 'Using Local Offline Cache';
+  } else if (status === 'error') {
+    dot.classList.add('status-error');
+    text.innerText = customMsg || 'Sync Error - Local Saving Active';
+  }
+}
+
+/**
+ * Controls the fade-out transition of the initial cloud load overlay screen.
+ */
+function showAppLoader(show) {
+  const loader = document.getElementById('app-loader');
+  if (!loader) return;
+  if (show) {
+    loader.style.display = 'flex';
+    loader.classList.remove('fade-out');
+  } else {
+    loader.classList.add('fade-out');
+    setTimeout(() => {
+      loader.style.display = 'none';
+    }, 500); // match CSS fade transition duration
+  }
+}
+
 /**
  * Initializes the application state, seeding if empty.
+ * First tries to load from Vercel KV serverless API with a timeout fallback.
  */
-function initApp() {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved) {
-    try {
-      state = { ...state, ...JSON.parse(saved) };
-    } catch (e) {
-      console.error('Failed to parse local storage', e);
-      loadSeedData();
-    }
-  } else {
-    loadSeedData();
-  }
+async function initApp() {
+  updateSyncStatus('syncing', 'Connecting to Vercel KV...');
   
-  // Clean active UI elements
-  applyFilters();
+  // Set up local storage backup loader
+  const loadLocalFallback = () => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        state.expenses = parsed.expenses || [];
+        state.fundings = parsed.fundings || [];
+        updateSyncStatus('offline', 'Offline Fallback - Loaded Local Cache');
+      } catch (e) {
+        console.error('Failed to parse local storage', e);
+        loadSeedDataLocalStorage();
+      }
+    } else {
+      loadSeedDataLocalStorage();
+    }
+  };
+
+  try {
+    // 5-second fetch timeout using AbortController to prevent hanging connection on weak networks
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+    const response = await fetch('/api/data', { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      console.warn(`Vercel KV API responded with status ${response.status}. Falling back to local.`);
+      loadLocalFallback();
+      return;
+    }
+
+    const cloudData = await response.json();
+
+    // Check if the backend responded with an integration error (e.g. KV not linked yet)
+    if (cloudData.error && cloudData.error.includes('not configured')) {
+      console.warn('Vercel KV is not linked in project dashboard. Running in local fallback mode.');
+      loadLocalFallback();
+      updateSyncStatus('offline', 'Vercel KV Not Connected (Local Sandbox)');
+      return;
+    }
+
+    // Check if the database has records
+    const isCloudEmpty = (!cloudData.expenses || cloudData.expenses.length === 0) &&
+                        (!cloudData.fundings || cloudData.fundings.length === 0);
+
+    if (isCloudEmpty) {
+      console.log('Database is completely empty. Seeding defaults to cloud...');
+      state.expenses = [...seedData.expenses];
+      state.fundings = [...seedData.fundings];
+      await saveToStorage(true); // run synchronously on initial seed
+    } else {
+      state.expenses = cloudData.expenses || [];
+      state.fundings = cloudData.fundings || [];
+      // Synchronize offline local cache
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        expenses: state.expenses,
+        fundings: state.fundings
+      }));
+      updateSyncStatus('synced');
+    }
+
+  } catch (error) {
+    console.error('Initial Vercel KV cloud fetch failed:', error);
+    // Connect failed (e.g. offline) -> fallback to browser local storage
+    loadLocalFallback();
+  } finally {
+    // Trigger visual draw updates and metric recalculations
+    applyFilters();
+    showAppLoader(false);
+  }
 }
 
-function loadSeedData() {
+/**
+ * Fallback to seed state locally if cloud is inaccessible on first launch
+ */
+function loadSeedDataLocalStorage() {
   state.expenses = [...seedData.expenses];
   state.fundings = [...seedData.fundings];
-  saveToStorage();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    expenses: state.expenses,
+    fundings: state.fundings
+  }));
+  updateSyncStatus('offline', 'Cloud Offline - Loaded Local Sandbox');
 }
 
-function saveToStorage() {
+/**
+ * Saves current ledger state to LocalStorage immediately and syncs with Vercel KV in background.
+ */
+async function saveToStorage(runSynchronously = false) {
   const dataToSave = {
     expenses: state.expenses,
     fundings: state.fundings
   };
+
+  // 1. Instant local storage update for high performance responsive UI
   localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
+
+  // 2. Perform background async network push to Vercel KV
+  const syncTask = async () => {
+    updateSyncStatus('syncing', 'Syncing changes with cloud...');
+    try {
+      const response = await fetch('/api/data', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(dataToSave),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Cloud sync returned HTTP status ${response.status}`);
+      }
+
+      const resJson = await response.json();
+      if (resJson.error && resJson.error.includes('not configured')) {
+        updateSyncStatus('offline', 'KV Not Connected (Changes Saved Locally)');
+        return;
+      }
+
+      updateSyncStatus('synced', 'All changes saved to Cloud');
+    } catch (err) {
+      console.error('Cloud background sync failed:', err);
+      updateSyncStatus('error', 'Sync Failed - Saved in Browser Cache');
+    }
+  };
+
+  if (runSynchronously) {
+    await syncTask();
+  } else {
+    // Run in background, avoiding blocking UI thread
+    syncTask();
+  }
 }
+
 
 // --- Date Helper Utilities ---
 function getDaysAgo(days) {
