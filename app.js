@@ -142,7 +142,7 @@ function updateSyncStatus(status, customMsg = '') {
     text.innerText = customMsg || 'Syncing ledger data...';
   } else if (status === 'synced') {
     dot.classList.add('status-synced');
-    text.innerText = customMsg || 'Synced with Cloud (Vercel KV)';
+    text.innerText = customMsg || 'Synced with Cloud (Redis)';
   } else if (status === 'offline') {
     dot.classList.add('status-offline');
     text.innerText = customMsg || 'Using Local Offline Cache';
@@ -210,11 +210,11 @@ async function initApp() {
 
     const cloudData = await response.json();
 
-    // Check if the backend responded with an integration error (e.g. KV not linked yet)
+    // Check if the backend responded with an integration error (e.g. database not configured yet)
     if (cloudData.error && cloudData.error.includes('not configured')) {
-      console.warn('Vercel KV is not linked in project dashboard. Running in local fallback mode.');
+      console.warn('Database is not linked in project dashboard. Running in local fallback mode.');
       loadLocalFallback();
-      updateSyncStatus('offline', 'Vercel KV Not Connected (Local Sandbox)');
+      updateSyncStatus('offline', 'Database Not Connected (Local Sandbox)');
       return;
     }
 

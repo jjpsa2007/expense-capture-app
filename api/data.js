@@ -18,15 +18,15 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  // 2. Resolve Vercel KV environment variables (injected by Vercel upon database connection)
-  const KV_URL = process.env.KV_REST_API_URL;
-  const KV_TOKEN = process.env.KV_REST_API_TOKEN;
+  // 2. Resolve database environment variables (supports standard Vercel KV or direct Upstash Redis)
+  const KV_URL = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  const KV_TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
 
   if (!KV_URL || !KV_TOKEN) {
     // If not connected yet, return a clear error indicator so the frontend can fallback gracefully
     return res.status(503).json({
-      error: 'Vercel KV is not configured',
-      message: 'KV_REST_API_URL and KV_REST_API_TOKEN environment variables are missing. Please link a KV database in your Vercel Dashboard.'
+      error: 'Vercel KV or Upstash Redis is not configured',
+      message: 'Environment variables (KV_REST_API_URL/UPSTASH_REDIS_REST_URL and KV_REST_API_TOKEN/UPSTASH_REDIS_REST_TOKEN) are missing. Please configure them in your Vercel Dashboard.'
     });
   }
 
