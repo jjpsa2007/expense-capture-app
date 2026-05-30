@@ -400,7 +400,7 @@ function recalculateMetrics() {
   // Update DOM KPI elements
   document.getElementById('kpi-total-spent').innerText = formatCurrency(totals.totalSpent);
   document.getElementById('kpi-spent-hand').innerText = formatCurrency(totals.spentFromHand);
-  document.getElementById('kpi-received-Athan').innerText = formatCurrency(AthanBalance); // Displays the Net Cash Pool
+  document.getElementById('kpi-Athan-pool').innerText = formatCurrency(AthanBalance); // Displays the Net Cash Pool
   document.getElementById('kpi-owed-account').innerText = formatCurrency(outstandingDue); // Net Owed outstanding
 
   // Quick Action Reimburse Button injection inside Owed to My Account card
