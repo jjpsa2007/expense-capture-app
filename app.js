@@ -8,7 +8,8 @@
 let state = {
   expenses: [],
   fundings: [],
-  activeLedgerTab: 'expenses', // 'expenses' | 'fundings'
+  settlements: [],
+  activeLedgerTab: 'expenses', // 'expenses' | 'fundings' | 'settlements'
   activeReportPeriod: 'week',  // 'day' | 'week' | 'month'
   filters: {
     search: '',
@@ -184,6 +185,7 @@ async function initApp() {
         const parsed = JSON.parse(saved);
         state.expenses = parsed.expenses || [];
         state.fundings = parsed.fundings || [];
+        state.settlements = parsed.settlements || [];
         updateSyncStatus('offline', 'Offline Fallback - Loaded Local Cache');
       } catch (e) {
         console.error('Failed to parse local storage', e);
@@ -226,14 +228,17 @@ async function initApp() {
       console.log('Database is completely empty. Seeding defaults to cloud...');
       state.expenses = [...seedData.expenses];
       state.fundings = [...seedData.fundings];
+      state.settlements = [];
       await saveToStorage(true); // run synchronously on initial seed
     } else {
       state.expenses = cloudData.expenses || [];
       state.fundings = cloudData.fundings || [];
+      state.settlements = cloudData.settlements || [];
       // Synchronize offline local cache
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         expenses: state.expenses,
-        fundings: state.fundings
+        fundings: state.fundings,
+        settlements: state.settlements
       }));
       updateSyncStatus('synced');
     }
@@ -255,9 +260,11 @@ async function initApp() {
 function loadSeedDataLocalStorage() {
   state.expenses = [...seedData.expenses];
   state.fundings = [...seedData.fundings];
+  state.settlements = [];
   localStorage.setItem(STORAGE_KEY, JSON.stringify({
     expenses: state.expenses,
-    fundings: state.fundings
+    fundings: state.fundings,
+    settlements: state.settlements
   }));
   updateSyncStatus('offline', 'Cloud Offline - Loaded Local Sandbox');
 }
@@ -268,7 +275,8 @@ function loadSeedDataLocalStorage() {
 async function saveToStorage(runSynchronously = false) {
   const dataToSave = {
     expenses: state.expenses,
-    fundings: state.fundings
+    fundings: state.fundings,
+    settlements: state.settlements || []
   };
 
   // 1. Instant local storage update for high performance responsive UI
@@ -351,7 +359,8 @@ function recalculateMetrics() {
     spentFromHand: 0,
     spentFromAdvance: 0,
     totalReceived: 0,
-    totalDelayed: 0
+    totalDelayed: 0,
+    totalSettled: 0
   };
 
   // Expenses calculations
@@ -375,17 +384,42 @@ function recalculateMetrics() {
     }
   });
 
-  // Net Athan cash balance remaining in Middle Man's custody
-  const AthanBalance = totals.totalReceived - totals.spentFromAdvance;
+  // Settlements (Self-Reimbursements) calculations
+  if (Array.isArray(state.settlements)) {
+    state.settlements.forEach(s => {
+      totals.totalSettled += parseFloat(s.amount) || 0;
+    });
+  }
 
-  // Reimbursement outstanding: what I spent from hand + what Athan delayed/promised
-  const outstandingDue = totals.spentFromHand + totals.totalDelayed;
+  // Net Athan cash balance remaining in Middle Man's custody (Received from Athan - Spent from advance - Transferred to personal account)
+  const AthanBalance = totals.totalReceived - totals.spentFromAdvance - totals.totalSettled;
+
+  // Reimbursement outstanding: what I spent from hand minus what I self-reimbursed from Athan's pool
+  const outstandingDue = totals.spentFromHand - totals.totalSettled;
 
   // Update DOM KPI elements
   document.getElementById('kpi-total-spent').innerText = formatCurrency(totals.totalSpent);
   document.getElementById('kpi-spent-hand').innerText = formatCurrency(totals.spentFromHand);
-  document.getElementById('kpi-received-Athan').innerText = formatCurrency(totals.totalReceived);
-  document.getElementById('kpi-outstanding-due').innerText = formatCurrency(outstandingDue);
+  document.getElementById('kpi-received-Athan').innerText = formatCurrency(AthanBalance); // Displays the Net Cash Pool
+  document.getElementById('kpi-owed-account').innerText = formatCurrency(outstandingDue); // Net Owed outstanding
+
+  // Quick Action Reimburse Button injection inside Owed to My Account card
+  const dueActionWrapper = document.getElementById('kpi-due-action-wrapper');
+  if (dueActionWrapper) {
+    dueActionWrapper.innerHTML = '';
+    if (outstandingDue > 0 && AthanBalance > 0) {
+      const transferLimit = Math.min(outstandingDue, AthanBalance);
+      const settleBtn = document.createElement('button');
+      settleBtn.className = 'btn-kpi-action';
+      settleBtn.innerHTML = `
+        <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+        Reimburse Self (${formatCurrency(transferLimit)})
+      `;
+      settleBtn.title = "Transfer from Athan Advance custody to your Personal Bank Account";
+      settleBtn.onclick = () => openQuickSettlementModal(transferLimit);
+      dueActionWrapper.appendChild(settleBtn);
+    }
+  }
 
   // Update Dynamic Balance Progress Bar
   const barAthan = document.getElementById('bar-Athan');
@@ -411,6 +445,7 @@ function recalculateMetrics() {
   }
 }
 
+// --- Dynamic Ledger Views & Filtering ---
 // --- Dynamic Ledger Views & Filtering ---
 function renderLedger() {
   const container = document.getElementById('ledger-container');
@@ -479,7 +514,7 @@ function renderLedger() {
       `;
       container.appendChild(el);
     });
-  } else {
+  } else if (state.activeLedgerTab === 'fundings') {
     // Show filter elements related to funding (Hide recipient type & funding paid from)
     document.getElementById('filter-recipient-type').style.display = 'none';
     document.getElementById('filter-funding').style.display = 'none';
@@ -536,6 +571,60 @@ function renderLedger() {
       `;
       container.appendChild(el);
     });
+  } else if (state.activeLedgerTab === 'settlements') {
+    // Hide filter elements related to expenses & fundings
+    document.getElementById('filter-recipient-type').style.display = 'none';
+    document.getElementById('filter-funding').style.display = 'none';
+
+    if (!Array.isArray(state.settlements)) {
+      state.settlements = [];
+    }
+
+    const filteredSettlements = state.settlements.filter(s => {
+      return (s.notes || '').toLowerCase().includes(searchLower);
+    });
+
+    filteredSettlements.sort((a, b) => parseLocalDate(b.date) - parseLocalDate(a.date));
+
+    if (filteredSettlements.length === 0) {
+      container.appendChild(createEmptyState('No self-reimbursements logged yet.'));
+      return;
+    }
+
+    filteredSettlements.forEach(s => {
+      const el = document.createElement('div');
+      el.className = 'ledger-item';
+
+      el.innerHTML = `
+        <div class="ledger-item-left">
+          <div class="ledger-item-icon settlement">
+            <svg width="20" height="20" fill="none" stroke="var(--accent-info)" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+          </div>
+          <div>
+            <div class="ledger-item-title">${escapeHTML(s.notes || 'Reimburse Self')}</div>
+            <div class="ledger-item-meta">
+              <span class="ledger-item-meta-item">
+                <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                ${formatDisplayDate(s.date)}
+              </span>
+              <span class="badge badge-other">Internal Transfer</span>
+            </div>
+          </div>
+        </div>
+        <div class="ledger-item-right">
+          <div class="ledger-item-value settlement">⇄ ${formatCurrency(s.amount)}</div>
+          <div class="ledger-actions">
+            <button class="btn-icon" onclick="editSettlement('${s.id}')" title="Edit self-reimbursement">
+              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+            </button>
+            <button class="btn-icon delete" onclick="deleteSettlement('${s.id}')" title="Delete self-reimbursement">
+              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            </button>
+          </div>
+        </div>
+      `;
+      container.appendChild(el);
+    });
   }
 }
 
@@ -553,6 +642,8 @@ function switchLedgerTab(tab) {
   state.activeLedgerTab = tab;
   document.getElementById('tab-expenses').classList.toggle('active', tab === 'expenses');
   document.getElementById('tab-fundings').classList.toggle('active', tab === 'fundings');
+  const elSettlements = document.getElementById('tab-settlements');
+  if (elSettlements) elSettlements.classList.toggle('active', tab === 'settlements');
   applyFilters();
 }
 
@@ -725,6 +816,26 @@ function closeFundingModal() {
   document.getElementById('funding-date').value = todayStr;
 }
 
+function openQuickSettlementModal(amount) {
+  openSettlementModal();
+  document.getElementById('settlement-amount').value = amount.toFixed(2);
+  document.getElementById('settlement-notes').value = `Transfer to personal account to settle out-of-pocket payments`;
+}
+
+function openSettlementModal() {
+  document.getElementById('modal-settlement').classList.add('active');
+  document.getElementById('settlement-amount').focus();
+  const todayStr = new Date().toISOString().split('T')[0];
+  document.getElementById('settlement-date').value = todayStr;
+}
+
+function closeSettlementModal() {
+  document.getElementById('modal-settlement').classList.remove('active');
+  document.getElementById('form-settlement').reset();
+  document.getElementById('settlement-id').value = '';
+  document.getElementById('settlement-submit-btn').innerText = 'Record Transfer';
+}
+
 // --- Submit Controllers ---
 function handleExpenseSubmit(event) {
   event.preventDefault();
@@ -810,6 +921,44 @@ function handleFundingSubmit(event) {
   applyFilters();
 }
 
+function handleSettlementSubmit(event) {
+  event.preventDefault();
+
+  const id = document.getElementById('settlement-id').value;
+  const amount = parseFloat(document.getElementById('settlement-amount').value);
+  const date = document.getElementById('settlement-date').value;
+  const notes = document.getElementById('settlement-notes').value.trim();
+
+  if (isNaN(amount) || amount <= 0 || !date || !notes) {
+    alert('Please fill out all fields correctly.');
+    return;
+  }
+
+  const settlementData = {
+    id: id || 's-' + Date.now(),
+    amount,
+    date,
+    notes
+  };
+
+  if (!Array.isArray(state.settlements)) {
+    state.settlements = [];
+  }
+
+  if (id) {
+    const idx = state.settlements.findIndex(s => s.id === id);
+    if (idx !== -1) {
+      state.settlements[idx] = settlementData;
+    }
+  } else {
+    state.settlements.push(settlementData);
+  }
+
+  saveToStorage();
+  closeSettlementModal();
+  applyFilters();
+}
+
 // --- Edit/Delete Operations ---
 function editExpense(id) {
   const expense = state.expenses.find(e => e.id === id);
@@ -859,6 +1008,29 @@ function deleteFunding(id) {
   }
 }
 
+function editSettlement(id) {
+  if (!Array.isArray(state.settlements)) return;
+  const s = state.settlements.find(item => item.id === id);
+  if (!s) return;
+
+  document.getElementById('settlement-id').value = s.id;
+  document.getElementById('settlement-amount').value = s.amount;
+  document.getElementById('settlement-date').value = s.date;
+  document.getElementById('settlement-notes').value = s.notes || '';
+
+  document.getElementById('settlement-submit-btn').innerText = 'Save Changes';
+  document.getElementById('modal-settlement').classList.add('active');
+}
+
+function deleteSettlement(id) {
+  if (!Array.isArray(state.settlements)) return;
+  if (confirm('Are you sure you want to delete this self-reimbursement transfer?')) {
+    state.settlements = state.settlements.filter(s => s.id !== id);
+    saveToStorage();
+    applyFilters();
+  }
+}
+
 // --- Data Portability Engine (Export/Import) ---
 function exportDataJSON() {
   const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state, null, 2));
@@ -903,6 +1075,22 @@ function exportDataCSV() {
     csvContent += row + "\r\n";
   });
 
+  csvContent += "\r\n";
+
+  // Section 3: Self-Reimbursement Header & Data
+  csvContent += "=== SELF-REIMBURSEMENTS ===\r\n";
+  csvContent += "Date,Amount,Notes\r\n";
+  if (Array.isArray(state.settlements)) {
+    state.settlements.forEach(s => {
+      const row = [
+        s.date,
+        s.amount,
+        `"${(s.notes || '').replace(/"/g, '""')}"`
+      ].join(",");
+      csvContent += row + "\r\n";
+    });
+  }
+
   const encodedUri = encodeURI(csvContent);
   const dlAnchorElem = document.createElement('a');
   dlAnchorElem.setAttribute("href", encodedUri);
@@ -925,6 +1113,7 @@ function importDataJSON(event) {
       if (Array.isArray(imported.expenses) && Array.isArray(imported.fundings)) {
         state.expenses = imported.expenses;
         state.fundings = imported.fundings;
+        state.settlements = Array.isArray(imported.settlements) ? imported.settlements : [];
 
         saveToStorage();
         applyFilters();
@@ -954,10 +1143,12 @@ function importDataCSV(event) {
 
     let parsedExpenses = [];
     let parsedFundings = [];
+    let parsedSettlements = [];
 
-    let currentMode = 'auto'; // 'auto', 'expenses', 'fundings'
+    let currentMode = 'auto'; // 'auto', 'expenses', 'fundings', 'settlements'
     let expenseHeaderIndices = null;
     let fundingHeaderIndices = null;
+    let settlementHeaderIndices = null;
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
@@ -969,9 +1160,14 @@ function importDataCSV(event) {
         expenseHeaderIndices = null;
         continue;
       }
-      if (line.includes('=== Athan FUNDINGS ===')) {
+      if (line.includes('=== Athan FUNDINGS ===') || line.includes('=== INVESTOR FUNDINGS ===')) {
         currentMode = 'fundings';
         fundingHeaderIndices = null;
+        continue;
+      }
+      if (line.includes('=== SELF-REIMBURSEMENTS ===')) {
+        currentMode = 'settlements';
+        settlementHeaderIndices = null;
         continue;
       }
 
@@ -1004,6 +1200,18 @@ function importDataCSV(event) {
         }
       }
 
+      if (currentMode === 'settlements') {
+        const isHeader = columns.some(col => {
+          const l = col.toLowerCase().trim();
+          return l === 'date' || l === 'amount' || l === 'notes';
+        });
+
+        if (isHeader && !settlementHeaderIndices) {
+          settlementHeaderIndices = mapHeaders(columns, 'settlements');
+          continue;
+        }
+      }
+
       // Parse data rows
       if (currentMode === 'expenses') {
         const item = parseExpenseRow(columns, expenseHeaderIndices || { date: 0, amount: 1, recipientType: 2, recipientName: 3, paymentMode: 4, paidFrom: 5, notes: 6 }, i);
@@ -1011,23 +1219,28 @@ function importDataCSV(event) {
       } else if (currentMode === 'fundings') {
         const item = parseFundingRow(columns, fundingHeaderIndices || { date: 0, amount: 1, transferMode: 2, status: 3, notes: 4 }, i);
         if (item) parsedFundings.push(item);
+      } else if (currentMode === 'settlements') {
+        const item = parseSettlementRow(columns, settlementHeaderIndices || { date: 0, amount: 1, notes: 2 }, i);
+        if (item) parsedSettlements.push(item);
       }
     }
 
-    if (parsedExpenses.length > 0 || parsedFundings.length > 0) {
-      if (confirm(`Successfully parsed ${parsedExpenses.length} expenses and ${parsedFundings.length} fundings. Overwrite current ledger?\n\n(Click 'OK' to overwrite current state. Click 'Cancel' to append these records to your existing list)`)) {
+    if (parsedExpenses.length > 0 || parsedFundings.length > 0 || parsedSettlements.length > 0) {
+      if (confirm(`Successfully parsed ${parsedExpenses.length} expenses, ${parsedFundings.length} fundings, and ${parsedSettlements.length} self-reimbursements. Overwrite current ledger?\n\n(Click 'OK' to overwrite current state. Click 'Cancel' to append these records to your existing list)`)) {
         state.expenses = parsedExpenses;
         state.fundings = parsedFundings;
+        state.settlements = parsedSettlements;
       } else {
         state.expenses = [...state.expenses, ...parsedExpenses];
         state.fundings = [...state.fundings, ...parsedFundings];
+        state.settlements = [...(state.settlements || []), ...parsedSettlements];
       }
 
       saveToStorage();
       applyFilters();
       alert('CSV Data successfully loaded and calculated!');
     } else {
-      alert('Could not parse any valid expense or funding rows from the selected CSV file. Please make sure headers match expected columns.');
+      alert('Could not parse any valid expense, funding, or self-reimbursement rows from the selected CSV file. Please make sure headers match expected columns.');
     }
   };
   reader.readAsText(file);
@@ -1135,6 +1348,24 @@ function parseFundingRow(columns, mapping, index) {
     transferMode: mode,
     status: status,
     notes: notes
+  };
+}
+
+function parseSettlementRow(columns, mapping, index) {
+  const dateCol = columns[mapping.date !== undefined ? mapping.date : 0] || '';
+  const amountCol = columns[mapping.amount !== undefined ? mapping.amount : 1] || '';
+  const notesCol = columns[mapping.notes !== undefined ? mapping.notes : 2] || 'Reimburse Self';
+
+  const amt = parseFloat(amountCol.replace(/[^0-9.-]/g, ''));
+  if (!dateCol || isNaN(amt) || amt <= 0) return null;
+
+  const cleanDate = normalizeCSVDate(dateCol);
+
+  return {
+    id: 's-csv-' + index + '-' + Date.now(),
+    date: cleanDate,
+    amount: amt,
+    notes: notesCol
   };
 }
 
